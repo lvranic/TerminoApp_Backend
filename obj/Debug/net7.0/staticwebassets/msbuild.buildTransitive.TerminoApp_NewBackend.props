@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="../buildMultiTargeting/TerminoApp_NewBackend.props" />
+</Project>

@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="../build/TerminoApp_NewBackend.props" />
+</Project>
