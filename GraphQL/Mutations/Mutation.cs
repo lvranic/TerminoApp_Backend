@@ -1,12 +1,14 @@
 using System;
 using System.Threading.Tasks;
+using System.Security.Claims;
 using HotChocolate;
 using HotChocolate.Execution;
+using HotChocolate.Authorization;
 using Microsoft.EntityFrameworkCore;
 using TerminoApp_NewBackend.Data;
-using TerminoApp_NewBackend.Models;          // ✅ dodano za UnavailableDay
+using TerminoApp_NewBackend.Models;
 using TerminoApp_NewBackend.Services;
-using TerminoApp_NewBackend.GraphQL.Inputs; // ✅ za UnavailableDayInput
+using TerminoApp_NewBackend.GraphQL.Inputs;
 
 namespace TerminoApp_NewBackend.GraphQL.Mutations
 {
@@ -41,6 +43,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
                 Email = email,
                 Phone = phone,
                 Role = role,
+                // ⚠️ u produkciji hashirati lozinku
                 Password = password
             };
 
@@ -48,7 +51,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             await db.SaveChangesAsync();
 
             var token = jwt.GenerateToken(user.Id, user.Email, user.Role);
-
             return new AuthPayload(token, user);
         }
 
@@ -91,6 +93,51 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             context.UnavailableDays.Add(entity);
             await context.SaveChangesAsync();
             return entity;
+        }
+
+        // =========================
+        //   REZERVACIJE (NOVO)
+        // =========================
+
+        /// <summary>
+        /// Kreira rezervaciju za trenutno prijavljenog korisnika.
+        /// Vrijeme se prima kao UTC (startsAtUtc). Trajanje je opcionalno (default 30 min).
+        /// </summary>
+        // using System.Security.Claims;
+        [Authorize]
+        [GraphQLName("createReservation")]
+        public async Task<Reservation> CreateReservationAsync(
+            string providerId,
+            string serviceId,
+            DateTime startsAtUtc,
+            int? durationMinutes,
+            [Service] IDbContextFactory<AppDbContext> dbFactory,
+            ClaimsPrincipal claims)
+        {
+            await using var db = await dbFactory.CreateDbContextAsync();
+
+            var userId = claims.FindFirst("sub")?.Value
+                      ?? claims.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                      ?? throw new GraphQLException(ErrorBuilder.New()
+                           .SetMessage("Nije moguće odrediti korisnika iz tokena.")
+                           .Build());
+
+            var duration = durationMinutes ?? 30;
+
+            var reservation = new Reservation
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                UserId = userId,
+                ProviderId = providerId,   // string
+                ServiceId = serviceId,     // string
+                StartsAt = DateTime.SpecifyKind(startsAtUtc, DateTimeKind.Utc),
+                DurationMinutes = duration,
+                Status = "Pending"
+            };
+
+            db.Reservations.Add(reservation);
+            await db.SaveChangesAsync();
+            return reservation;
         }
     }
 }

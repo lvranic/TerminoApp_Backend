@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TerminoApp_NewBackend.Data;
@@ -11,9 +12,11 @@ using TerminoApp_NewBackend.Data;
 namespace TerminoApp_NewBackend.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250812162032_AddReservations")]
+    partial class AddReservations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -27,18 +30,21 @@ namespace TerminoApp_NewBackend.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("text");
 
-                    b.Property<int>("DurationMinutes")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ProviderId")
+                    b.Property<string>("AdminId")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("integer");
 
                     b.Property<string>("ServiceId")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<DateTime>("StartsAt")
+                    b.Property<DateTime>("StartUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
@@ -51,9 +57,9 @@ namespace TerminoApp_NewBackend.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("AdminId");
 
-                    b.HasIndex("ProviderId", "StartsAt");
+                    b.HasIndex("UserId");
 
                     b.ToTable("Reservations");
                 });
@@ -110,17 +116,21 @@ namespace TerminoApp_NewBackend.Migrations
 
             modelBuilder.Entity("TerminoApp_NewBackend.Models.Reservation", b =>
                 {
-                    b.HasOne("TerminoApp_NewBackend.Models.User", null)
+                    b.HasOne("TerminoApp_NewBackend.Models.User", "Admin")
                         .WithMany()
-                        .HasForeignKey("ProviderId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasForeignKey("AdminId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TerminoApp_NewBackend.Models.User", null)
+                    b.HasOne("TerminoApp_NewBackend.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Admin");
+
+                    b.Navigation("User");
                 });
 #pragma warning restore 612, 618
         }

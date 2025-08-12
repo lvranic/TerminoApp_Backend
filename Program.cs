@@ -10,9 +10,16 @@ using TerminoApp_NewBackend.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1) EF + PostgreSQL
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// (opcionalno, ali korisno za Npgsql DateTime ponašanje)
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
+// 1) EF Core – KORISTIMO *FACTORY* (bez AddDbContext!)
+var connStr = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new Exception("Missing connection string 'DefaultConnection'.");
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
+    options.UseNpgsql(connStr));
+// Ako želiš pool: builder.Services.AddPooledDbContextFactory<AppDbContext>(...);
+// ali i dalje NEMOJ dodavati AddDbContext uz to.
 
 // 2) JWT auth
 var jwtSection = builder.Configuration.GetSection("JwtSettings");
@@ -20,29 +27,30 @@ var jwtKey = jwtSection["Key"] ?? throw new Exception("JwtSettings:Key missing")
 var jwtIssuer = jwtSection["Issuer"];
 var jwtAudience = jwtSection["Audience"];
 
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.RequireHttpsMetadata = false; // dev
-    options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
+builder.Services
+    .AddAuthentication(options =>
     {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-        ValidateIssuer = !string.IsNullOrWhiteSpace(jwtIssuer),
-        ValidIssuer = jwtIssuer,
-        ValidateAudience = !string.IsNullOrWhiteSpace(jwtAudience),
-        ValidAudience = jwtAudience,
-        ValidateLifetime = true,
-        ClockSkew = TimeSpan.FromMinutes(2)
-    };
-});
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = false; // dev
+        options.SaveToken = true;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ValidateIssuer = !string.IsNullOrWhiteSpace(jwtIssuer),
+            ValidIssuer = jwtIssuer,
+            ValidateAudience = !string.IsNullOrWhiteSpace(jwtAudience),
+            ValidAudience = jwtAudience,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(2)
+        };
+    });
 
-// 3) JwtService DI
+// 3) JwtService
 builder.Services.AddSingleton<JwtService>();
 
 // 4) GraphQL
@@ -54,7 +62,8 @@ builder.Services
     .AddType<UserInputType>()
     .AddFiltering()
     .AddSorting()
-    .AddAuthorization();
+    .AddAuthorization()
+    .ModifyRequestOptions(o => o.IncludeExceptionDetails = true);
 
 // Swagger / API
 builder.Services.AddControllers();
@@ -72,11 +81,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// ⬇️ VAŽNO: redoslijed
+// ⬇️ redoslijed je bitan
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Routes
 app.MapControllers();
 app.MapGraphQL(); // /graphql
 
