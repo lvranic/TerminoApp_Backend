@@ -1,14 +1,16 @@
-using TerminoApp_NewBackend.Models;
-
 namespace TerminoApp_NewBackend.GraphQL.Payloads
 {
     public class ReservationPayload
     {
-        public Reservation Reservation { get; }
+        public string Id { get; set; }
+        public bool Success { get; set; }
+        public string? Message { get; set; }
 
-        public ReservationPayload(Reservation reservation)
+        public ReservationPayload(string id, bool success, string? message = null)
         {
-            Reservation = reservation;
+            Id = id;
+            Success = success;
+            Message = message;
         }
     }
 }

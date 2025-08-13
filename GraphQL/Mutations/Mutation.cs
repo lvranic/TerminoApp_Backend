@@ -9,6 +9,7 @@ using TerminoApp_NewBackend.Data;
 using TerminoApp_NewBackend.Models;
 using TerminoApp_NewBackend.Services;
 using TerminoApp_NewBackend.GraphQL.Inputs;
+using TerminoApp_NewBackend.GraphQL.Payloads;
 
 namespace TerminoApp_NewBackend.GraphQL.Mutations
 {
@@ -43,7 +44,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
                 Email = email,
                 Phone = phone,
                 Role = role,
-                // ⚠️ u produkciji hashirati lozinku
+                // ⚠️ U produkciji obavezno hashirati lozinku
                 Password = password
             };
 
@@ -96,48 +97,77 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
         }
 
         // =========================
-        //   REZERVACIJE (NOVO)
+        //   REZERVACIJE
         // =========================
 
         /// <summary>
         /// Kreira rezervaciju za trenutno prijavljenog korisnika.
         /// Vrijeme se prima kao UTC (startsAtUtc). Trajanje je opcionalno (default 30 min).
         /// </summary>
-        // using System.Security.Claims;
         [Authorize]
         [GraphQLName("createReservation")]
-        public async Task<Reservation> CreateReservationAsync(
+        public async Task<ReservationPayload> CreateReservationAsync(
             string providerId,
             string serviceId,
             DateTime startsAtUtc,
             int? durationMinutes,
-            [Service] IDbContextFactory<AppDbContext> dbFactory,
-            ClaimsPrincipal claims)
+            ClaimsPrincipal claims,
+            [Service] AppDbContext db)
         {
-            await using var db = await dbFactory.CreateDbContextAsync();
+            // user id iz tokena
+            string? userId =
+                claims.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
+                claims.FindFirst("sub")?.Value ??
+                claims.FindFirst("uid")?.Value;
 
-            var userId = claims.FindFirst("sub")?.Value
-                      ?? claims.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                      ?? throw new GraphQLException(ErrorBuilder.New()
-                           .SetMessage("Nije moguće odrediti korisnika iz tokena.")
-                           .Build());
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                throw new GraphQLException(
+                    ErrorBuilder.New()
+                        .SetMessage("Nije moguće odrediti korisnika iz tokena.")
+                        .Build()
+                );
+            }
+
+            // Provjera: postoji li provider (admin)
+            bool providerOk = await db.Users.AnyAsync(u => u.Id == providerId);
+            if (!providerOk)
+            {
+                throw new GraphQLException(
+                    ErrorBuilder.New()
+                        .SetMessage("Neispravan providerId.")
+                        .Build()
+                );
+            }
+
+            // Ako želiš validirati i uslugu:
+            // - Dodaj u AppDbContext: public DbSet<Service> Services { get; set; }
+            // - Otkrij točan DbSet i ovdje odkomentiraj provjeru.
+            // bool serviceOk = await db.Services.AnyAsync(s => s.Id == serviceId);
+            // if (!serviceOk)
+            // {
+            //     throw new GraphQLException(
+            //         ErrorBuilder.New().SetMessage("Neispravan serviceId.").Build()
+            //     );
+            // }
 
             var duration = durationMinutes ?? 30;
 
-            var reservation = new Reservation
+            var entity = new Reservation
             {
                 Id = Guid.NewGuid().ToString("N"),
                 UserId = userId,
-                ProviderId = providerId,   // string
-                ServiceId = serviceId,     // string
+                ProviderId = providerId,
+                ServiceId = serviceId,
                 StartsAt = DateTime.SpecifyKind(startsAtUtc, DateTimeKind.Utc),
                 DurationMinutes = duration,
                 Status = "Pending"
             };
 
-            db.Reservations.Add(reservation);
+            db.Reservations.Add(entity);
             await db.SaveChangesAsync();
-            return reservation;
+
+            return new ReservationPayload(entity.Id, true, "OK");
         }
     }
 }
