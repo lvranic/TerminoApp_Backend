@@ -5,12 +5,14 @@ namespace TerminoApp_NewBackend.Models
 {
     public class Reservation
     {
-        public string Id { get; set; } = Guid.NewGuid().ToString("N");
-        public string UserId { get; set; } = default!;
-        public string ProviderId { get; set; } = default!;
-        public string ServiceId { get; set; } = default!;
-        public DateTime StartsAt { get; set; }      // UTC
-        public int DurationMinutes { get; set; }    // npr. 30
-        public string Status { get; set; } = "Pending";
+        public string Id { get; set; }
+        public string ProviderId { get; set; }
+        public string ServiceId { get; set; }
+        public string UserId { get; set; }
+
+        public DateTime StartsAt { get; set; } // ⬅️ OVO OBAVEZNO DODAJ
+
+        public int DurationMinutes { get; set; }
+        public string Status { get; set; }
     }
 }

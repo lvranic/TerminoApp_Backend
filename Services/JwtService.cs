@@ -4,6 +4,7 @@ using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using TerminoApp_NewBackend.Models; // ✅ Dodano zbog User modela
 
 namespace TerminoApp_NewBackend.Services
 {
@@ -51,6 +52,12 @@ namespace TerminoApp_NewBackend.Services
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        // ✅ NOVO: metoda koja prima User objekt
+        public string Generate(User user)
+        {
+            return GenerateToken(user.Id, user.Email, user.Role);
         }
     }
 }

@@ -11,6 +11,7 @@ namespace TerminoApp_NewBackend.Data
         public DbSet<User> Users => Set<User>();
         public DbSet<UnavailableDay> UnavailableDays => Set<UnavailableDay>();
         public DbSet<Reservation> Reservations => Set<Reservation>(); // 👈 DODANO
+        public DbSet<Service> Services { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

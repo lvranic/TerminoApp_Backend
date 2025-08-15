@@ -49,7 +49,8 @@ builder.Services.AddSingleton<JwtService>();
 builder.Services
     .AddGraphQLServer()
     .AddQueryType<Query>()
-    .AddMutationType<Mutation>()
+    .AddMutationType<UserMutation>() // ✅ Samo JEDNA mutacija registrirana
+    .AddType<ServiceType>()
     .AddType<UserType>()
     .AddType<UserInputType>()
     .AddFiltering()
