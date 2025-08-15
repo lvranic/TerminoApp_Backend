@@ -44,8 +44,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
                 Email = email,
                 Phone = phone,
                 Role = role,
-                // ⚠️ U produkciji obavezno hashirati lozinku
-                Password = password
+                Password = password // ⚠️ Hashiraj lozinku u produkciji!
             };
 
             db.Users.Add(user);
@@ -96,14 +95,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             return entity;
         }
 
-        // =========================
-        //   REZERVACIJE
-        // =========================
-
-        /// <summary>
-        /// Kreira rezervaciju za trenutno prijavljenog korisnika.
-        /// Vrijeme se prima kao UTC (startsAtUtc). Trajanje je opcionalno (default 30 min).
-        /// </summary>
         [Authorize]
         [GraphQLName("createReservation")]
         public async Task<ReservationPayload> CreateReservationAsync(
@@ -114,7 +105,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             ClaimsPrincipal claims,
             [Service] AppDbContext db)
         {
-            // user id iz tokena
             string? userId =
                 claims.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
                 claims.FindFirst("sub")?.Value ??
@@ -129,7 +119,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
                 );
             }
 
-            // Provjera: postoji li provider (admin)
             bool providerOk = await db.Users.AnyAsync(u => u.Id == providerId);
             if (!providerOk)
             {
@@ -139,17 +128,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
                         .Build()
                 );
             }
-
-            // Ako želiš validirati i uslugu:
-            // - Dodaj u AppDbContext: public DbSet<Service> Services { get; set; }
-            // - Otkrij točan DbSet i ovdje odkomentiraj provjeru.
-            // bool serviceOk = await db.Services.AnyAsync(s => s.Id == serviceId);
-            // if (!serviceOk)
-            // {
-            //     throw new GraphQLException(
-            //         ErrorBuilder.New().SetMessage("Neispravan serviceId.").Build()
-            //     );
-            // }
 
             var duration = durationMinutes ?? 30;
 
@@ -168,6 +146,26 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             await db.SaveChangesAsync();
 
             return new ReservationPayload(entity.Id, true, "OK");
+        }
+
+        [GraphQLName("createService")]
+        public async Task<Service> CreateServiceAsync(
+            string providerId,
+            string name,
+            int durationMinutes,
+            [Service] AppDbContext db)
+        {
+            var service = new Service
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                ProviderId = providerId,
+                Name = name,
+                DurationMinutes = durationMinutes
+            };
+
+            db.Services.Add(service);
+            await db.SaveChangesAsync();
+            return service;
         }
     }
 }

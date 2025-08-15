@@ -49,7 +49,7 @@ builder.Services.AddSingleton<JwtService>();
 builder.Services
     .AddGraphQLServer()
     .AddQueryType<Query>()
-    .AddMutationType<UserMutation>() // ✅ Samo JEDNA mutacija registrirana
+    .AddMutationType<Mutation>()  // ✅ Samo JEDNA mutacija registrirana
     .AddType<ServiceType>()
     .AddType<UserType>()
     .AddType<UserInputType>()
