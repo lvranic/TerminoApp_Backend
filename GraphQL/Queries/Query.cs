@@ -1,5 +1,3 @@
-// TerminoApp_NewBackend/GraphQL/Queries/Query.cs
-
 using HotChocolate;
 using HotChocolate.Types;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +24,7 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
             return user;
         }
 
-        // ✅ NOVO: Dohvat svih admin korisnika (salona)
+        // ✅ Dohvat svih admin korisnika (salona)
         public IQueryable<User> GetProviders([Service] AppDbContext db)
         {
             return db.Users.Where(u => u.Role == "Admin");
@@ -39,6 +37,14 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
             return await db.Services
                 .Where(s => s.ProviderId == providerId)
                 .ToListAsync();
+        }
+
+        // ✅ Dohvat jedne usluge po ID-u
+        public async Task<Service?> GetServiceById(
+            [Service] AppDbContext db,
+            string id)
+        {
+            return await db.Services.FirstOrDefaultAsync(s => s.Id == id);
         }
     }
 }
