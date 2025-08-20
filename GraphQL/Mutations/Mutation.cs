@@ -63,6 +63,21 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
                 );
             }
 
+            if (role == "Admin")
+            {
+                // Ako je admin, provjeravamo da su ovi podaci obavezni
+                if (string.IsNullOrWhiteSpace(businessName) ||
+                    string.IsNullOrWhiteSpace(address) ||
+                    string.IsNullOrWhiteSpace(workHours))
+                {
+                    throw new GraphQLException(
+                        ErrorBuilder.New()
+                            .SetMessage("Admin mora imati naziv obrta, adresu i radno vrijeme.")
+                            .Build()
+                    );
+                }
+            }
+
             var user = new User
             {
                 Id = Guid.NewGuid().ToString("N"),

@@ -24,6 +24,26 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
             return user;
         }
 
+        [Authorize]
+        [GraphQLName("myReservations")]
+        public async Task<IEnumerable<Reservation>> GetMyReservations(
+            ClaimsPrincipal claims,
+            [Service] AppDbContext db)
+        {
+            var providerId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(providerId))
+            {
+                throw new GraphQLException("Nije moguće dohvatiti ID korisnika iz tokena.");
+            }
+
+            return await db.Reservations
+                .Include(r => r.User)    // ako želiš korisnika prikazati
+                .Include(r => r.Service) // ako želiš naziv usluge prikazati
+                .Where(r => r.ProviderId == providerId)
+                .OrderByDescending(r => r.StartsAt)
+                .ToListAsync();
+        }
+
         // ✅ Dohvat svih admin korisnika (salona)
         public IQueryable<User> GetProviders([Service] AppDbContext db)
         {
