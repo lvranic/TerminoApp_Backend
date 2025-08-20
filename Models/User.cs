@@ -8,5 +8,10 @@ namespace TerminoApp_NewBackend.Models
         public string Phone { get; set; }
         public string Role { get; set; }
         public string Password { get; set; }
+
+        // ✅ Dodano
+        public string BusinessName { get; set; }
+        public string Address { get; set; }
+        public string WorkHours { get; set; }
     }
 }

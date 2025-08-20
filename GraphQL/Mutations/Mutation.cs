@@ -17,43 +17,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
     {
         public record AuthPayload(string Token, User User);
 
-        [GraphQLName("addUser")]
-        public async Task<AuthPayload> AddUserAsync(
-            string name,
-            string email,
-            string phone,
-            string role,
-            string password,
-            [Service] AppDbContext db,
-            [Service] JwtService jwt)
-        {
-            var exists = await db.Users.AnyAsync(u => u.Email == email);
-            if (exists)
-            {
-                throw new GraphQLException(
-                    ErrorBuilder.New()
-                        .SetMessage("Korisnik s danim emailom već postoji.")
-                        .Build()
-                );
-            }
-
-            var user = new User
-            {
-                Id = Guid.NewGuid().ToString("N"),
-                Name = name,
-                Email = email,
-                Phone = phone,
-                Role = role,
-                Password = password // ⚠️ Hashiraj lozinku u produkciji!
-            };
-
-            db.Users.Add(user);
-            await db.SaveChangesAsync();
-
-            var token = jwt.GenerateToken(user.Id, user.Email, user.Role);
-            return new AuthPayload(token, user);
-        }
-
         [GraphQLName("login")]
         public async Task<AuthPayload> LoginAsync(
             string email,
@@ -77,22 +40,67 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             return new AuthPayload(token, user);
         }
 
-        [GraphQLName("addUnavailableDay")]
-        public async Task<UnavailableDay> AddUnavailableDay(
-            [GraphQLNonNullType] UnavailableDayInput input,
-            [Service] IDbContextFactory<AppDbContext> dbContextFactory)
+        [GraphQLName("addUser")]
+        public async Task<AuthPayload> AddUserAsync(
+            string name,
+            string email,
+            string phone,
+            string role,
+            string password,
+            string? businessName,
+            string? address,
+            string? workHours,
+            [Service] AppDbContext db,
+            [Service] JwtService jwt)
         {
-            await using var context = await dbContextFactory.CreateDbContextAsync();
-
-            var entity = new UnavailableDay
+            var exists = await db.Users.AnyAsync(u => u.Email == email);
+            if (exists)
             {
-                Date = input.Date.Date,
-                AdminId = input.AdminId
+                throw new GraphQLException(
+                    ErrorBuilder.New()
+                        .SetMessage("Korisnik s danim emailom već postoji.")
+                        .Build()
+                );
+            }
+
+            var user = new User
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Name = name,
+                Email = email,
+                Phone = phone,
+                Role = role,
+                Password = password,
+                BusinessName = businessName,
+                Address = address,
+                WorkHours = workHours
             };
 
-            context.UnavailableDays.Add(entity);
-            await context.SaveChangesAsync();
-            return entity;
+            db.Users.Add(user);
+            await db.SaveChangesAsync();
+
+            var token = jwt.GenerateToken(user.Id, user.Email, user.Role);
+            return new AuthPayload(token, user);
+        }
+
+        [GraphQLName("createService")]
+        public async Task<Service> CreateServiceAsync(
+            string providerId,
+            string name,
+            int durationMinutes,
+            [Service] AppDbContext db)
+        {
+            var service = new Service
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                ProviderId = providerId,
+                Name = name,
+                DurationMinutes = durationMinutes
+            };
+
+            db.Services.Add(service);
+            await db.SaveChangesAsync();
+            return service;
         }
 
         [Authorize]
@@ -146,26 +154,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             await db.SaveChangesAsync();
 
             return new ReservationPayload(entity.Id, true, "OK");
-        }
-
-        [GraphQLName("createService")]
-        public async Task<Service> CreateServiceAsync(
-            string providerId,
-            string name,
-            int durationMinutes,
-            [Service] AppDbContext db)
-        {
-            var service = new Service
-            {
-                Id = Guid.NewGuid().ToString("N"),
-                ProviderId = providerId,
-                Name = name,
-                DurationMinutes = durationMinutes
-            };
-
-            db.Services.Add(service);
-            await db.SaveChangesAsync();
-            return service;
         }
     }
 }
