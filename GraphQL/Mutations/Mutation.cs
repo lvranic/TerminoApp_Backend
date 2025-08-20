@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Security.Claims;
 using HotChocolate;
@@ -65,7 +67,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
 
             if (role == "Admin")
             {
-                // Ako je admin, provjeravamo da su ovi podaci obavezni
                 if (string.IsNullOrWhiteSpace(businessName) ||
                     string.IsNullOrWhiteSpace(address) ||
                     string.IsNullOrWhiteSpace(workHours))
@@ -75,6 +76,23 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
                             .SetMessage("Admin mora imati naziv obrta, adresu i radno vrijeme.")
                             .Build()
                     );
+                }
+            }
+
+            // ➤ Parsiraj radno vrijeme
+            string? dayRange = null;
+            string? hourRange = null;
+            List<string> workDays = new();
+
+            if (!string.IsNullOrWhiteSpace(workHours))
+            {
+                var parts = workHours.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                if (parts.Length >= 2)
+                {
+                    dayRange = parts[0].Trim();
+                    hourRange = parts[1].Trim();
+                    workDays = ParseDayRange(dayRange);
                 }
             }
 
@@ -88,7 +106,9 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
                 Password = password,
                 BusinessName = businessName,
                 Address = address,
-                WorkHours = workHours
+                WorkHours = workHours,
+                WorkDays = workDays,
+                WorkingHoursRange = hourRange
             };
 
             db.Users.Add(user);
@@ -96,6 +116,27 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
 
             var token = jwt.GenerateToken(user.Id, user.Email, user.Role);
             return new AuthPayload(token, user);
+        }
+
+        private List<string> ParseDayRange(string? input)
+        {
+            var allDays = new List<string> { "Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned" };
+            if (string.IsNullOrWhiteSpace(input)) return allDays;
+
+            var normalized = input.Replace("-", "–"); // pretvori minus u en dash
+            var tokens = normalized.Split('–');
+            if (tokens.Length != 2) return allDays;
+
+            var from = allDays.IndexOf(tokens[0].Trim());
+            var to = allDays.IndexOf(tokens[1].Trim());
+
+            if (from == -1 || to == -1) return allDays;
+
+            if (from <= to)
+                return allDays.GetRange(from, to - from + 1);
+
+            // primjer: Pet–Uto
+            return allDays.Skip(from).Concat(allDays.Take(to + 1)).ToList();
         }
 
         [GraphQLName("createService")]

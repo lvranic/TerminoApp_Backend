@@ -12,6 +12,9 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
     {
         public string Hello() => "world";
 
+        public Task<User?> GetUserByIdAsync(string id, [Service] AppDbContext db) =>
+                db.Users.FirstOrDefaultAsync(u => u.Id == id);
+
         [Authorize]
         public async Task<User> Me([Service] AppDbContext db, ClaimsPrincipal claims)
         {

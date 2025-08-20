@@ -8,6 +8,8 @@ namespace TerminoApp_NewBackend.Models
         public string Phone { get; set; } = string.Empty;
         public string Role { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+        public List<string>? WorkDays { get; set; }  // npr. ["Pon", "Uto", "Sri", "Čet", "Pet"]
+        public string? WorkingHoursRange { get; set; } // npr. "9-17"
 
         // Ovi podaci su potrebni samo za Admina – zato su nullable
         public string? BusinessName { get; set; }
