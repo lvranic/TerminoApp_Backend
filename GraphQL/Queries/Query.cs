@@ -47,6 +47,31 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
                 .ToListAsync();
         }
 
+        [Authorize(Roles = new[] { "Admin" })]
+        [GraphQLName("myServices")]
+        public async Task<List<Service>> GetMyServicesAsync(
+            ClaimsPrincipal claims,
+            [Service] AppDbContext db)
+        {
+            string? userId =
+                claims.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
+                claims.FindFirst("sub")?.Value ??
+                claims.FindFirst("uid")?.Value;
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                throw new GraphQLException(
+                    ErrorBuilder.New()
+                        .SetMessage("Nije moguće dohvatiti ID korisnika.")
+                        .Build()
+                );
+            }
+
+            return await db.Services
+                .Where(s => s.ProviderId == userId)
+                .ToListAsync();
+        }
+
         // ✅ Dohvat svih admin korisnika (salona)
         public IQueryable<User> GetProviders([Service] AppDbContext db)
         {

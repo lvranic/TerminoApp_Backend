@@ -211,5 +211,80 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
 
             return new ReservationPayload(entity.Id, true, "OK");
         }
+
+        [Authorize]
+        [GraphQLName("deleteReservation")]
+        public async Task<ReservationPayload> DeleteReservationAsync(
+            string id,
+            [Service] AppDbContext db)
+        {
+            var reservation = await db.Reservations.FindAsync(id);
+            if (reservation == null)
+            {
+                return new ReservationPayload(id, false, "Rezervacija nije pronađena.");
+            }
+
+            db.Reservations.Remove(reservation);
+            await db.SaveChangesAsync();
+
+            return new ReservationPayload(id, true, "Rezervacija je uspješno otkazana.");
+        }
+
+        [Authorize]
+        [GraphQLName("updateService")]
+        public async Task<Service> UpdateServiceAsync(
+            string serviceId,
+            int newDurationMinutes,
+            [Service] AppDbContext db)
+        {
+            var service = await db.Services.FindAsync(serviceId);
+            if (service == null)
+            {
+                throw new GraphQLException(
+                    ErrorBuilder.New()
+                        .SetMessage("Usluga nije pronađena.")
+                        .Build());
+            }
+
+            service.DurationMinutes = newDurationMinutes;
+            await db.SaveChangesAsync();
+            return service;
+        }
+
+        [Authorize]
+        [GraphQLName("updateUser")]
+        public async Task<User> UpdateUserAsync(
+            string userId,
+            string? address,
+            string? workHours,
+            [Service] AppDbContext db)
+        {
+            var user = await db.Users.FindAsync(userId);
+            if (user == null)
+            {
+                throw new GraphQLException(
+                    ErrorBuilder.New()
+                        .SetMessage("Korisnik nije pronađen.")
+                        .Build());
+            }
+
+            user.Address = address ?? user.Address;
+            user.WorkHours = workHours ?? user.WorkHours;
+
+            if (!string.IsNullOrWhiteSpace(workHours))
+            {
+                var parts = workHours.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 2)
+                {
+                    var dayRange = parts[0].Trim();
+                    var hourRange = parts[1].Trim();
+                    user.WorkingHoursRange = hourRange;
+                    user.WorkDays = ParseDayRange(dayRange);
+                }
+            }
+
+            await db.SaveChangesAsync();
+            return user;
+        }
     }
 }
