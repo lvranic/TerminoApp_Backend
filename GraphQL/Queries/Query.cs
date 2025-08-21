@@ -33,16 +33,17 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
             ClaimsPrincipal claims,
             [Service] AppDbContext db)
         {
-            var providerId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(providerId))
+            var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
             {
                 throw new GraphQLException("Nije moguće dohvatiti ID korisnika iz tokena.");
             }
 
             return await db.Reservations
-                .Include(r => r.User)    // ako želiš korisnika prikazati
-                .Include(r => r.Service) // ako želiš naziv usluge prikazati
-                .Where(r => r.ProviderId == providerId)
+                .Include(r => r.User)       // korisnik koji je rezervirao
+                .Include(r => r.Service)    // naziv usluge
+                .Include(r => r.Provider)   // ➕ naziv salona (provider)
+                .Where(r => r.UserId == userId) // ➤ za USER-a
                 .OrderByDescending(r => r.StartsAt)
                 .ToListAsync();
         }

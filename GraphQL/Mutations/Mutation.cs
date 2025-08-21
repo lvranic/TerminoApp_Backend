@@ -256,6 +256,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
         public async Task<User> UpdateUserAsync(
             string userId,
             string? address,
+            string? phone,
             string? workHours,
             [Service] AppDbContext db)
         {
@@ -269,6 +270,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             }
 
             user.Address = address ?? user.Address;
+            user.Phone = phone ?? user.Phone;
             user.WorkHours = workHours ?? user.WorkHours;
 
             if (!string.IsNullOrWhiteSpace(workHours))
