@@ -31,11 +31,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
 
             if (user == null)
             {
-                throw new GraphQLException(
-                    ErrorBuilder.New()
-                        .SetMessage("Pogrešan email ili lozinka.")
-                        .Build()
-                );
+                throw new GraphQLException("Pogrešan email ili lozinka.");
             }
 
             var token = jwt.GenerateToken(user.Id, user.Email, user.Role);
@@ -58,11 +54,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             var exists = await db.Users.AnyAsync(u => u.Email == email);
             if (exists)
             {
-                throw new GraphQLException(
-                    ErrorBuilder.New()
-                        .SetMessage("Korisnik s danim emailom već postoji.")
-                        .Build()
-                );
+                throw new GraphQLException("Korisnik s danim emailom već postoji.");
             }
 
             if (role == "Admin")
@@ -71,15 +63,10 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
                     string.IsNullOrWhiteSpace(address) ||
                     string.IsNullOrWhiteSpace(workHours))
                 {
-                    throw new GraphQLException(
-                        ErrorBuilder.New()
-                            .SetMessage("Admin mora imati naziv obrta, adresu i radno vrijeme.")
-                            .Build()
-                    );
+                    throw new GraphQLException("Admin mora imati naziv obrta, adresu i radno vrijeme.");
                 }
             }
 
-            // ➤ Parsiraj radno vrijeme
             string? dayRange = null;
             string? hourRange = null;
             List<string> workDays = new();
@@ -123,7 +110,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             var allDays = new List<string> { "Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned" };
             if (string.IsNullOrWhiteSpace(input)) return allDays;
 
-            var normalized = input.Replace("-", "–"); // pretvori minus u en dash
+            var normalized = input.Replace("-", "–");
             var tokens = normalized.Split('–');
             if (tokens.Length != 2) return allDays;
 
@@ -135,7 +122,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             if (from <= to)
                 return allDays.GetRange(from, to - from + 1);
 
-            // primjer: Pet–Uto
             return allDays.Skip(from).Concat(allDays.Take(to + 1)).ToList();
         }
 
@@ -169,33 +155,28 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             ClaimsPrincipal claims,
             [Service] AppDbContext db)
         {
-            string? userId =
-                claims.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
-                claims.FindFirst("sub")?.Value ??
-                claims.FindFirst("uid")?.Value;
-
+            var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId))
-            {
-                throw new GraphQLException(
-                    ErrorBuilder.New()
-                        .SetMessage("Nije moguće odrediti korisnika iz tokena.")
-                        .Build()
-                );
-            }
+                throw new GraphQLException("Nije moguće odrediti korisnika iz tokena.");
 
-            bool providerOk = await db.Users.AnyAsync(u => u.Id == providerId);
-            if (!providerOk)
-            {
-                throw new GraphQLException(
-                    ErrorBuilder.New()
-                        .SetMessage("Neispravan providerId.")
-                        .Build()
-                );
-            }
+            var provider = await db.Users.FindAsync(providerId);
+            if (provider == null)
+                throw new GraphQLException("Neispravan providerId.");
 
             var duration = durationMinutes ?? 30;
+            var endsAtUtc = startsAtUtc.AddMinutes(duration);
 
-            var entity = new Reservation
+            // 🔒 Provjera konflikta prije dodavanja
+            var overlapping = await db.Reservations
+                .Where(r => r.ProviderId == providerId &&
+                            r.StartsAt < endsAtUtc &&
+                            startsAtUtc < r.StartsAt.AddMinutes(r.DurationMinutes))
+                .AnyAsync();
+
+            if (overlapping)
+                throw new GraphQLException("Odabrani termin se preklapa s postojećom rezervacijom.");
+
+            var reservation = new Reservation
             {
                 Id = Guid.NewGuid().ToString("N"),
                 UserId = userId,
@@ -206,23 +187,31 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
                 Status = "Pending"
             };
 
-            db.Reservations.Add(entity);
+            db.Reservations.Add(reservation);
             await db.SaveChangesAsync();
 
-            return new ReservationPayload(entity.Id, true, "OK");
+            return new ReservationPayload(reservation.Id, true, "OK");
         }
 
         [Authorize]
         [GraphQLName("deleteReservation")]
         public async Task<ReservationPayload> DeleteReservationAsync(
             string id,
+            ClaimsPrincipal claims,
             [Service] AppDbContext db)
         {
-            var reservation = await db.Reservations.FindAsync(id);
+            var reservation = await db.Reservations
+                .Include(r => r.User)
+                .Include(r => r.Provider)
+                .Include(r => r.Service)
+                .FirstOrDefaultAsync(r => r.Id == id);
+
             if (reservation == null)
-            {
                 return new ReservationPayload(id, false, "Rezervacija nije pronađena.");
-            }
+
+            var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (reservation.UserId != userId && reservation.ProviderId != userId)
+                throw new GraphQLException("Nedozvoljena akcija.");
 
             db.Reservations.Remove(reservation);
             await db.SaveChangesAsync();
@@ -239,12 +228,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
         {
             var service = await db.Services.FindAsync(serviceId);
             if (service == null)
-            {
-                throw new GraphQLException(
-                    ErrorBuilder.New()
-                        .SetMessage("Usluga nije pronađena.")
-                        .Build());
-            }
+                throw new GraphQLException("Usluga nije pronađena.");
 
             service.DurationMinutes = newDurationMinutes;
             await db.SaveChangesAsync();
@@ -262,12 +246,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
         {
             var user = await db.Users.FindAsync(userId);
             if (user == null)
-            {
-                throw new GraphQLException(
-                    ErrorBuilder.New()
-                        .SetMessage("Korisnik nije pronađen.")
-                        .Build());
-            }
+                throw new GraphQLException("Korisnik nije pronađen.");
 
             user.Address = address ?? user.Address;
             user.Phone = phone ?? user.Phone;

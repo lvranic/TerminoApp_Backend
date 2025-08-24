@@ -10,6 +10,6 @@ namespace TerminoApp_NewBackend.Models
 
         public DateTime Date { get; set; }
 
-        public string AdminId { get; set; }
+        public string AdminId { get; set; } = default!; // 🔧 riješen warning za CS8618
     }
 }

@@ -5,6 +5,7 @@ using TerminoApp_NewBackend.Data;
 using TerminoApp_NewBackend.Models;
 using HotChocolate.Authorization;
 using System.Security.Claims;
+using Microsoft.Extensions.Logging;
 
 namespace TerminoApp_NewBackend.GraphQL.Queries
 {
@@ -13,7 +14,7 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
         public string Hello() => "world";
 
         public Task<User?> GetUserByIdAsync(string id, [Service] AppDbContext db) =>
-                db.Users.FirstOrDefaultAsync(u => u.Id == id);
+            db.Users.FirstOrDefaultAsync(u => u.Id == id);
 
         [Authorize]
         public async Task<User> Me([Service] AppDbContext db, ClaimsPrincipal claims)
@@ -40,10 +41,10 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
             }
 
             return await db.Reservations
-                .Include(r => r.User)       // korisnik koji je rezervirao
-                .Include(r => r.Service)    // naziv usluge
-                .Include(r => r.Provider)   // ➕ naziv salona (provider)
-                .Where(r => r.UserId == userId) // ➤ za USER-a
+                .Include(r => r.User)
+                .Include(r => r.Service)
+                .Include(r => r.Provider)
+                .Where(r => r.UserId == userId)
                 .OrderByDescending(r => r.StartsAt)
                 .ToListAsync();
         }
@@ -73,7 +74,6 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
                 .ToListAsync();
         }
 
-        // ✅ Dohvat svih admin korisnika (salona)
         public IQueryable<User> GetProviders([Service] AppDbContext db)
         {
             return db.Users.Where(u => u.Role == "Admin");
@@ -88,12 +88,40 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
                 .ToListAsync();
         }
 
-        // ✅ Dohvat jedne usluge po ID-u
         public async Task<Service?> GetServiceById(
             [Service] AppDbContext db,
             string id)
         {
             return await db.Services.FirstOrDefaultAsync(s => s.Id == id);
+        }
+
+        [Authorize]
+        [GraphQLName("reservationsByProviderAndDate")]
+        public async Task<IEnumerable<Reservation>> GetReservationsByProviderAndDateAsync(
+            string providerId,
+            [GraphQLType(typeof(DateTimeType))] DateTime date,
+            [Service] AppDbContext db,
+            [Service] ILogger<Query> logger) // ✅ injektirani logger
+        {
+            logger.LogInformation("🟡 POZIV: reservationsByProviderAndDate(providerId: {ProviderId}, date: {Date})", providerId, date);
+
+            var start = date.Date;
+            var end = start.AddDays(1);
+
+            var result = await db.Reservations
+                .Where(r => r.ProviderId == providerId &&
+                            r.StartsAt >= start &&
+                            r.StartsAt < end)
+                .ToListAsync();
+
+            logger.LogInformation("✅ REZULTAT: {count} rezervacija pronađeno za {providerId} na datum {date}", result.Count, providerId, date);
+
+            foreach (var r in result)
+            {
+                logger.LogDebug("📌 Rezervacija: {start} - {duration}min", r.StartsAt, r.DurationMinutes);
+            }
+
+            return result;
         }
     }
 }
