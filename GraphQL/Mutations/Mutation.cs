@@ -145,6 +145,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             return service;
         }
 
+        // Unutar Mutation klase
         [Authorize]
         [GraphQLName("createReservation")]
         public async Task<ReservationPayload> CreateReservationAsync(
@@ -153,7 +154,8 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             DateTime startsAtUtc,
             int? durationMinutes,
             ClaimsPrincipal claims,
-            [Service] AppDbContext db)
+            [Service] AppDbContext db,
+            [Service] EmailService emailService)
         {
             var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId))
@@ -163,10 +165,17 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             if (provider == null)
                 throw new GraphQLException("Neispravan providerId.");
 
+            var user = await db.Users.FindAsync(userId);
+            if (user == null)
+                throw new GraphQLException("Korisnik nije pronađen.");
+
+            var service = await db.Services.FindAsync(serviceId);
+            if (service == null)
+                throw new GraphQLException("Usluga nije pronađena.");
+
             var duration = durationMinutes ?? 30;
             var endsAtUtc = startsAtUtc.AddMinutes(duration);
 
-            // 🔒 Provjera konflikta prije dodavanja
             var overlapping = await db.Reservations
                 .Where(r => r.ProviderId == providerId &&
                             r.StartsAt < endsAtUtc &&
@@ -190,6 +199,13 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             db.Reservations.Add(reservation);
             await db.SaveChangesAsync();
 
+            // ✅ Pošalji mail pružatelju
+            var formattedTime = startsAtUtc.ToLocalTime().ToString("dd.MM.yyyy. 'u' HH:mm");
+            var subject = "🟢 Nova rezervacija termina";
+            var body = $"Obavijest!\n{user.Name} je rezervirao/la uslugu: {service.Name} za {formattedTime}.";
+
+            await emailService.SendReservationNotificationAsync(provider.Email, subject, body);
+
             return new ReservationPayload(reservation.Id, true, "OK");
         }
 
@@ -198,7 +214,8 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
         public async Task<ReservationPayload> DeleteReservationAsync(
             string id,
             ClaimsPrincipal claims,
-            [Service] AppDbContext db)
+            [Service] AppDbContext db,
+            [Service] EmailService emailService)
         {
             var reservation = await db.Reservations
                 .Include(r => r.User)
@@ -212,6 +229,31 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
             if (reservation.UserId != userId && reservation.ProviderId != userId)
                 throw new GraphQLException("Nedozvoljena akcija.");
+
+            // Formatiranje datuma i vremena
+            var formattedDate = reservation.StartsAt.ToLocalTime().ToString("dd.MM.yyyy");
+            var formattedTime = reservation.StartsAt.ToLocalTime().ToString("HH:mm");
+
+            var initiator = reservation.UserId == userId ? reservation.User.Name : reservation.Provider.Name;
+
+            // ✅ Obavijesti drugu stranu (samo ako su različite osobe)
+            if (reservation.User.Email != reservation.Provider.Email)
+            {
+                if (reservation.UserId == userId)
+                {
+                    // Korisnik otkazuje → obavijesti pružatelja
+                    var subject = "📢 Termin otkazan";
+                    var body = $"{reservation.User.Name} je otkazao/la termin za uslugu \"{reservation.Service.Name}\" koji je bio zakazan za {formattedDate} u {formattedTime}.";
+                    await emailService.SendEmailAsync(reservation.Provider.Email, subject, body);
+                }
+                else
+                {
+                    // Pružatelj otkazuje → obavijesti korisnika
+                    var subject = "📢 Vaš termin je otkazan";
+                    var body = $"{reservation.Provider.Name} je otkazao/la vaš termin za uslugu \"{reservation.Service.Name}\" zakazan za {formattedDate} u {formattedTime}.";
+                    await emailService.SendEmailAsync(reservation.User.Email, subject, body);
+                }
+            }
 
             db.Reservations.Remove(reservation);
             await db.SaveChangesAsync();

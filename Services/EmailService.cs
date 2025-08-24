@@ -41,10 +41,14 @@ namespace TerminoApp_NewBackend.Services
             }
             catch (Exception ex)
             {
-                // TODO: ovdje možeš logirati grešku ili poslati u monitoring sustav
                 Console.WriteLine($"Greška pri slanju emaila: {ex.Message}");
-                throw; // Ili možeš izbaciti custom exception ako želiš
+                throw;
             }
+        }
+
+        public async Task SendReservationNotificationAsync(string toEmail, string subject, string message)
+        {
+            await SendEmailAsync(toEmail, subject, message);
         }
     }
 }

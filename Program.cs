@@ -55,9 +55,9 @@ builder.Services.AddSingleton(provider =>
     new EmailService(
         host: "smtp.office365.com",     // Outlook SMTP host
         port: 587,                      // TLS port
-        username: "vranic.luka35@outlook.com",
-        password: "Vidikovac2208!",
-        fromEmail: "luka.vranic22@outlook.com"
+        username: "",
+        password: "",
+        fromEmail: ""
     )
 );
 
