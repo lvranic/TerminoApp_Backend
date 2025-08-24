@@ -9,15 +9,16 @@ using HotChocolate.Authorization;
 using Microsoft.EntityFrameworkCore;
 using TerminoApp_NewBackend.Data;
 using TerminoApp_NewBackend.Models;
-using TerminoApp_NewBackend.Services;
 using TerminoApp_NewBackend.GraphQL.Inputs;
 using TerminoApp_NewBackend.GraphQL.Payloads;
+using TerminoApp_NewBackend.Services;
 
 namespace TerminoApp_NewBackend.GraphQL.Mutations
 {
     public class Mutation
     {
         public record AuthPayload(string Token, User User);
+        public record GenericPayload(bool Success, string Message);
 
         [GraphQLName("login")]
         public async Task<AuthPayload> LoginAsync(
@@ -26,14 +27,8 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             [Service] AppDbContext db,
             [Service] JwtService jwt)
         {
-            var user = await db.Users
-                .FirstOrDefaultAsync(u => u.Email == email && u.Password == password);
-
-            if (user == null)
-            {
-                throw new GraphQLException("Pogrešan email ili lozinka.");
-            }
-
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email && u.Password == password);
+            if (user == null) throw new GraphQLException("Pogrešan email ili lozinka.");
             var token = jwt.GenerateToken(user.Id, user.Email, user.Role);
             return new AuthPayload(token, user);
         }
@@ -52,19 +47,12 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             [Service] JwtService jwt)
         {
             var exists = await db.Users.AnyAsync(u => u.Email == email);
-            if (exists)
-            {
-                throw new GraphQLException("Korisnik s danim emailom već postoji.");
-            }
+            if (exists) throw new GraphQLException("Korisnik s danim emailom već postoji.");
 
-            if (role == "Admin")
+            if (role == "Admin" &&
+                (string.IsNullOrWhiteSpace(businessName) || string.IsNullOrWhiteSpace(address) || string.IsNullOrWhiteSpace(workHours)))
             {
-                if (string.IsNullOrWhiteSpace(businessName) ||
-                    string.IsNullOrWhiteSpace(address) ||
-                    string.IsNullOrWhiteSpace(workHours))
-                {
-                    throw new GraphQLException("Admin mora imati naziv obrta, adresu i radno vrijeme.");
-                }
+                throw new GraphQLException("Admin mora imati naziv obrta, adresu i radno vrijeme.");
             }
 
             string? dayRange = null;
@@ -74,7 +62,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             if (!string.IsNullOrWhiteSpace(workHours))
             {
                 var parts = workHours.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
                 if (parts.Length >= 2)
                 {
                     dayRange = parts[0].Trim();
@@ -145,7 +132,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             return service;
         }
 
-        // Unutar Mutation klase
         [Authorize]
         [GraphQLName("createReservation")]
         public async Task<ReservationPayload> CreateReservationAsync(
@@ -154,8 +140,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             DateTime startsAtUtc,
             int? durationMinutes,
             ClaimsPrincipal claims,
-            [Service] AppDbContext db,
-            [Service] EmailService emailService)
+            [Service] AppDbContext db)
         {
             var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId))
@@ -185,6 +170,13 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             if (overlapping)
                 throw new GraphQLException("Odabrani termin se preklapa s postojećom rezervacijom.");
 
+            var notification = new Notification
+            {
+                UserId = providerId,
+                Message = $"Nova rezervacija za uslugu \"{service.Name}\" u {startsAtUtc.ToLocalTime():dd.MM.yyyy. HH:mm}",
+            };
+            db.Notifications.Add(notification);
+
             var reservation = new Reservation
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -199,13 +191,6 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             db.Reservations.Add(reservation);
             await db.SaveChangesAsync();
 
-            // ✅ Pošalji mail pružatelju
-            var formattedTime = startsAtUtc.ToLocalTime().ToString("dd.MM.yyyy. 'u' HH:mm");
-            var subject = "🟢 Nova rezervacija termina";
-            var body = $"Obavijest!\n{user.Name} je rezervirao/la uslugu: {service.Name} za {formattedTime}.";
-
-            await emailService.SendReservationNotificationAsync(provider.Email, subject, body);
-
             return new ReservationPayload(reservation.Id, true, "OK");
         }
 
@@ -214,8 +199,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
         public async Task<ReservationPayload> DeleteReservationAsync(
             string id,
             ClaimsPrincipal claims,
-            [Service] AppDbContext db,
-            [Service] EmailService emailService)
+            [Service] AppDbContext db)
         {
             var reservation = await db.Reservations
                 .Include(r => r.User)
@@ -230,30 +214,13 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             if (reservation.UserId != userId && reservation.ProviderId != userId)
                 throw new GraphQLException("Nedozvoljena akcija.");
 
-            // Formatiranje datuma i vremena
-            var formattedDate = reservation.StartsAt.ToLocalTime().ToString("dd.MM.yyyy");
-            var formattedTime = reservation.StartsAt.ToLocalTime().ToString("HH:mm");
+            // 🔴 Obriši notifikacije koje se odnose na ovu rezervaciju
+            var relatedNotifications = await db.Notifications
+                .Where(n => n.UserId == reservation.ProviderId &&
+                            n.Message.Contains(reservation.StartsAt.ToLocalTime().ToString("dd.MM.yyyy. HH:mm")))
+                .ToListAsync();
 
-            var initiator = reservation.UserId == userId ? reservation.User.Name : reservation.Provider.Name;
-
-            // ✅ Obavijesti drugu stranu (samo ako su različite osobe)
-            if (reservation.User.Email != reservation.Provider.Email)
-            {
-                if (reservation.UserId == userId)
-                {
-                    // Korisnik otkazuje → obavijesti pružatelja
-                    var subject = "📢 Termin otkazan";
-                    var body = $"{reservation.User.Name} je otkazao/la termin za uslugu \"{reservation.Service.Name}\" koji je bio zakazan za {formattedDate} u {formattedTime}.";
-                    await emailService.SendEmailAsync(reservation.Provider.Email, subject, body);
-                }
-                else
-                {
-                    // Pružatelj otkazuje → obavijesti korisnika
-                    var subject = "📢 Vaš termin je otkazan";
-                    var body = $"{reservation.Provider.Name} je otkazao/la vaš termin za uslugu \"{reservation.Service.Name}\" zakazan za {formattedDate} u {formattedTime}.";
-                    await emailService.SendEmailAsync(reservation.User.Email, subject, body);
-                }
-            }
+            db.Notifications.RemoveRange(relatedNotifications);
 
             db.Reservations.Remove(reservation);
             await db.SaveChangesAsync();
@@ -308,6 +275,49 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
 
             await db.SaveChangesAsync();
             return user;
+        }
+
+        [Authorize]
+        [GraphQLName("markAllNotificationsAsRead")]
+        public async Task<bool> MarkAllNotificationsAsReadAsync(
+            ClaimsPrincipal claims,
+            [Service] AppDbContext db)
+        {
+            var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return false;
+
+            var unread = await db.Notifications
+                .Where(n => n.UserId == userId && !n.IsRead)
+                .ToListAsync();
+
+            foreach (var n in unread)
+                n.IsRead = true;
+
+            await db.SaveChangesAsync();
+            return true;
+        }
+
+        [Authorize]
+        [GraphQLName("markNotificationAsRead")]
+        public async Task<GenericPayload> MarkNotificationAsReadAsync(
+            string id,
+            ClaimsPrincipal claims,
+            [Service] AppDbContext db)
+        {
+            var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return new GenericPayload(false, "Korisnik nije prijavljen.");
+
+            var notification = await db.Notifications
+                .FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
+
+            if (notification == null)
+                return new GenericPayload(false, "Notifikacija nije pronađena.");
+
+            notification.IsRead = true;
+            await db.SaveChangesAsync();
+
+            return new GenericPayload(true, "Notifikacija označena kao pročitana.");
         }
     }
 }

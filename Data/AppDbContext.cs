@@ -11,6 +11,7 @@ namespace TerminoApp_NewBackend.Data
         public DbSet<Service> Services => Set<Service>();
         public DbSet<Reservation> Reservations => Set<Reservation>();
         public DbSet<UnavailableDay> UnavailableDays => Set<UnavailableDay>();
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

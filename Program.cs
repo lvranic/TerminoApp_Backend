@@ -1,3 +1,4 @@
+// ✅ Program.cs (ispravljeno)
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -10,16 +11,18 @@ using TerminoApp_NewBackend.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 📌 Logging (ako želiš detaljnije logove za debug)
+// Logging
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.SetMinimumLevel(LogLevel.Debug);
 
-// 1) EF Core – SAMO AddDbContext (scoped). NEMA AddDbContextFactory.
+// EF Core – VAŽNO: Scoped lifetime
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")),
+    ServiceLifetime.Scoped
+);
 
-// 2) JWT auth
+// JWT auth
 var jwtSection = builder.Configuration.GetSection("JwtSettings");
 var jwtKey = jwtSection["Key"] ?? throw new Exception("JwtSettings:Key nedostaje");
 var jwtIssuer = jwtSection["Issuer"];
@@ -32,7 +35,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false; // samo za DEV
+    options.RequireHttpsMetadata = false;
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -47,21 +50,10 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// 3) JwtService
+// JWT Service
 builder.Services.AddSingleton<JwtService>();
 
-// 4) EmailService – Outlook SMTP konfiguracija
-builder.Services.AddSingleton(provider =>
-    new EmailService(
-        host: "smtp.office365.com",     // Outlook SMTP host
-        port: 587,                      // TLS port
-        username: "",
-        password: "",
-        fromEmail: ""
-    )
-);
-
-// 5) GraphQL
+// GraphQL
 builder.Services
     .AddGraphQLServer()
     .AddQueryType<Query>()
@@ -74,7 +66,7 @@ builder.Services
     .AddAuthorization()
     .ModifyRequestOptions(opt => opt.IncludeExceptionDetails = true);
 
-// Swagger (opcionalno)
+// Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

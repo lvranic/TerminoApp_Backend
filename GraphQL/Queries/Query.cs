@@ -36,9 +36,7 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
         {
             var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
-            {
                 throw new GraphQLException("Nije moguće dohvatiti ID korisnika iz tokena.");
-            }
 
             return await db.Reservations
                 .Include(r => r.User)
@@ -61,13 +59,7 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
                 claims.FindFirst("uid")?.Value;
 
             if (string.IsNullOrWhiteSpace(userId))
-            {
-                throw new GraphQLException(
-                    ErrorBuilder.New()
-                        .SetMessage("Nije moguće dohvatiti ID korisnika.")
-                        .Build()
-                );
-            }
+                throw new GraphQLException("Nije moguće dohvatiti ID korisnika.");
 
             return await db.Services
                 .Where(s => s.ProviderId == userId)
@@ -96,32 +88,52 @@ namespace TerminoApp_NewBackend.GraphQL.Queries
         }
 
         [Authorize]
-        [GraphQLName("reservationsByProviderAndDate")]
-        public async Task<IEnumerable<Reservation>> GetReservationsByProviderAndDateAsync(
+        [GraphQLName("reservationsByProvider")]
+        public async Task<IEnumerable<Reservation>> GetReservationsByProviderAsync(
             string providerId,
-            [GraphQLType(typeof(DateTimeType))] DateTime date,
-            [Service] AppDbContext db,
-            [Service] ILogger<Query> logger) // ✅ injektirani logger
+            DateTime startDate,
+            DateTime endDate,
+            [Service] AppDbContext db)
         {
-            logger.LogInformation("🟡 POZIV: reservationsByProviderAndDate(providerId: {ProviderId}, date: {Date})", providerId, date);
-
-            var start = date.Date;
-            var end = start.AddDays(1);
-
-            var result = await db.Reservations
+            return await db.Reservations
+                .Include(r => r.User)
+                .Include(r => r.Service)
                 .Where(r => r.ProviderId == providerId &&
-                            r.StartsAt >= start &&
-                            r.StartsAt < end)
+                            r.StartsAt >= startDate &&
+                            r.StartsAt <= endDate)
+                .OrderBy(r => r.StartsAt)
                 .ToListAsync();
+        }
 
-            logger.LogInformation("✅ REZULTAT: {count} rezervacija pronađeno za {providerId} na datum {date}", result.Count, providerId, date);
+        [Authorize]
+        [GraphQLName("unreadNotificationsCount")]
+        public async Task<int> GetUnreadNotificationsCount(
+            ClaimsPrincipal claims,
+            [Service] AppDbContext db)
+        {
+            var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                throw new GraphQLException("Nema korisničkog ID-a.");
 
-            foreach (var r in result)
-            {
-                logger.LogDebug("📌 Rezervacija: {start} - {duration}min", r.StartsAt, r.DurationMinutes);
-            }
+            return await db.Notifications
+                .Where(n => n.UserId == userId && !n.IsRead)
+                .CountAsync();
+        }
 
-            return result;
+        [Authorize]
+        [GraphQLName("notifications")]
+        public async Task<IEnumerable<Notification>> GetNotificationsAsync(
+            ClaimsPrincipal claims,
+            [Service] AppDbContext db)
+        {
+            var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                throw new GraphQLException("Nije moguće dohvatiti korisnika.");
+
+            return await db.Notifications
+                .Where(n => n.UserId == userId)
+                .OrderByDescending(n => n.CreatedAt)
+                .ToListAsync();
         }
     }
 }

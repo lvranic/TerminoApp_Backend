@@ -5,13 +5,6 @@
 /Users/lukavranic/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.csproj.CoreCompileInputs.cache
 /Users/lukavranic/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.MvcApplicationPartsAssemblyInfo.cs
 /Users/lukavranic/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.MvcApplicationPartsAssemblyInfo.cache
-/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.csproj.AssemblyReference.cache
-/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.GeneratedMSBuildEditorConfig.editorconfig
-/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.AssemblyInfoInputs.cache
-/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.AssemblyInfo.cs
-/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.csproj.CoreCompileInputs.cache
-/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.MvcApplicationPartsAssemblyInfo.cs
-/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.MvcApplicationPartsAssemblyInfo.cache
 /Users/lukavranic/termino/TerminoApp_NewBackend/bin/Debug/net7.0/appsettings.Development.json
 /Users/lukavranic/termino/TerminoApp_NewBackend/bin/Debug/net7.0/appsettings.json
 /Users/lukavranic/termino/TerminoApp_NewBackend/bin/Debug/net7.0/TerminoApp_NewBackend
@@ -72,6 +65,13 @@
 /Users/lukavranic/termino/TerminoApp_NewBackend/bin/Debug/net7.0/System.IdentityModel.Tokens.Jwt.dll
 /Users/lukavranic/termino/TerminoApp_NewBackend/bin/Debug/net7.0/System.IO.Hashing.dll
 /Users/lukavranic/termino/TerminoApp_NewBackend/bin/Debug/net7.0/Yarp.ReverseProxy.dll
+/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.csproj.AssemblyReference.cache
+/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.GeneratedMSBuildEditorConfig.editorconfig
+/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.AssemblyInfoInputs.cache
+/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.AssemblyInfo.cs
+/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.csproj.CoreCompileInputs.cache
+/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.MvcApplicationPartsAssemblyInfo.cs
+/Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/TerminoApp_NewBackend.MvcApplicationPartsAssemblyInfo.cache
 /Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/staticwebassets/msbuild.TerminoApp_NewBackend.Microsoft.AspNetCore.StaticWebAssets.props
 /Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/staticwebassets/msbuild.build.TerminoApp_NewBackend.props
 /Users/lukavranic/termino/TerminoApp_NewBackend/obj/Debug/net7.0/staticwebassets/msbuild.buildMultiTargeting.TerminoApp_NewBackend.props
