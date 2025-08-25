@@ -198,6 +198,7 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
         [GraphQLName("deleteReservation")]
         public async Task<ReservationPayload> DeleteReservationAsync(
             string id,
+            string? reason,
             ClaimsPrincipal claims,
             [Service] AppDbContext db)
         {
@@ -211,13 +212,44 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
                 return new ReservationPayload(id, false, "Rezervacija nije pronađena.");
 
             var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (reservation.UserId != userId && reservation.ProviderId != userId)
+            var isUser = reservation.UserId == userId;
+            var isProvider = reservation.ProviderId == userId;
+
+            if (!isUser && !isProvider)
                 throw new GraphQLException("Nedozvoljena akcija.");
 
-            // 🔴 Obriši notifikacije koje se odnose na ovu rezervaciju
+            var serviceName = reservation.Service?.Name ?? "Nepoznata usluga";
+            var dateStr = reservation.StartsAt.ToLocalTime().ToString("dd.MM.yyyy. HH:mm");
+
+            if (isUser)
+            {
+                var msg = $"Korisnik je otkazao termin za uslugu \"{serviceName}\" u {dateStr}";
+                if (!string.IsNullOrWhiteSpace(reason))
+                    msg += $" – razlog: \"{reason}\"";
+
+                db.Notifications.Add(new Notification
+                {
+                    UserId = reservation.ProviderId,
+                    Message = msg
+                });
+            }
+
+            if (isProvider)
+            {
+                var msg = $"Pružatelj usluge je otkazao vaš termin za \"{serviceName}\" u {dateStr}";
+                if (!string.IsNullOrWhiteSpace(reason))
+                    msg += $" – razlog: \"{reason}\"";
+
+                db.Notifications.Add(new Notification
+                {
+                    UserId = reservation.UserId,
+                    Message = msg
+                });
+            }
+
+            // Obriši stare notifikacije za isti termin
             var relatedNotifications = await db.Notifications
-                .Where(n => n.UserId == reservation.ProviderId &&
-                            n.Message.Contains(reservation.StartsAt.ToLocalTime().ToString("dd.MM.yyyy. HH:mm")))
+                .Where(n => n.Message.Contains(dateStr))
                 .ToListAsync();
 
             db.Notifications.RemoveRange(relatedNotifications);
