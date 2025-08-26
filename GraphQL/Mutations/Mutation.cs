@@ -49,10 +49,12 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             var exists = await db.Users.AnyAsync(u => u.Email == email);
             if (exists) throw new GraphQLException("Korisnik s danim emailom već postoji.");
 
-            if (role == "Admin" &&
-                (string.IsNullOrWhiteSpace(businessName) || string.IsNullOrWhiteSpace(address) || string.IsNullOrWhiteSpace(workHours)))
+            var parts = workHours.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
             {
-                throw new GraphQLException("Admin mora imati naziv obrta, adresu i radno vrijeme.");
+                dayRange = parts[0].Trim();       // npr: Pon-Pet
+                hourRange = parts[1].Trim();      // npr: 09:00-17:00
+                workDays = ParseDayRange(dayRange);
             }
 
             string? dayRange = null;
