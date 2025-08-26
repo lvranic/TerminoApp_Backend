@@ -32,12 +32,11 @@ namespace TerminoApp_NewBackend.Services
 
             var claims = new[]
             {
-                // standardni claimovi
                 new Claim(JwtRegisteredClaimNames.Sub, userId),
                 new Claim(JwtRegisteredClaimNames.Email, email),
                 new Claim(ClaimTypes.Role, role),
-                // korisno za identitet u .NET auth middleware-u
-                new Claim(ClaimTypes.NameIdentifier, userId)
+                new Claim(ClaimTypes.NameIdentifier, userId), // .NET
+                new Claim("nameid", userId) // HotChocolate očekuje ovo!
             };
 
             var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
