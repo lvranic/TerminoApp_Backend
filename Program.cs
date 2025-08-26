@@ -1,4 +1,3 @@
-// ✅ Program.cs (ispravljeno)
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -16,13 +15,13 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.SetMinimumLevel(LogLevel.Debug);
 
-// EF Core – VAŽNO: Scoped lifetime
+// EF Core – Scoped lifetime
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")),
     ServiceLifetime.Scoped
 );
 
-// ✅ Ručno ispiši connection string u log
+// Ručno ispiši connection string
 var configuration = builder.Configuration;
 var connectionString = configuration.GetConnectionString("DefaultConnection");
 Console.WriteLine("🔌 Using connection string: " + connectionString);
@@ -87,15 +86,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
-app.UseRouting(); // ⬅️ DODAJ OVO
+app.UseRouting(); // ➕ ovo ostaje
 
-app.UseEndpoints(endpoints =>
-{
-    endpoints.MapControllers();
-    endpoints.MapGraphQL("/graphql");
-});
 app.UseAuthorization();
 
+// Mapiraj kontrolere i GraphQL jednom
 app.MapControllers();
 app.MapGraphQL("/graphql");
 
