@@ -49,12 +49,10 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             var exists = await db.Users.AnyAsync(u => u.Email == email);
             if (exists) throw new GraphQLException("Korisnik s danim emailom već postoji.");
 
-            var parts = workHours.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2)
+            if (role == "Admin" &&
+                (string.IsNullOrWhiteSpace(businessName) || string.IsNullOrWhiteSpace(address) || string.IsNullOrWhiteSpace(workHours)))
             {
-                dayRange = parts[0].Trim();       // npr: Pon-Pet
-                hourRange = parts[1].Trim();      // npr: 09:00-17:00
-                workDays = ParseDayRange(dayRange);
+                throw new GraphQLException("Admin mora imati naziv obrta, adresu i radno vrijeme.");
             }
 
             string? dayRange = null;
@@ -63,11 +61,11 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
 
             if (!string.IsNullOrWhiteSpace(workHours))
             {
-                var parts = workHours.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 2)
+                var partsParsed = workHours.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (partsParsed.Length >= 2)
                 {
-                    dayRange = parts[0].Trim();
-                    hourRange = parts[1].Trim();
+                    dayRange = partsParsed[0].Trim();
+                    hourRange = partsParsed[1].Trim();
                     workDays = ParseDayRange(dayRange);
                 }
             }
