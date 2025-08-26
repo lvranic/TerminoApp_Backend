@@ -130,8 +130,217 @@ namespace TerminoApp_NewBackend.GraphQL.Mutations
             return allDays.Skip(from).Concat(allDays.Take(to + 1)).ToList();
         }
 
-        // ostale metode (createService, createReservation, deleteReservation, itd.) ostaju nepromijenjene
-        // jer trenutno nemamo indikaciju da one uzrokuju problem
-        // Ako želiš, mogu i njih dodatno osigurati try-catch blokovima.
+        [Authorize]
+        [GraphQLName("createReservation")]
+        public async Task<ReservationPayload> CreateReservationAsync(
+            string providerId,
+            string serviceId,
+            DateTime startsAtUtc,
+            int? durationMinutes,
+            ClaimsPrincipal claims,
+            [Service] AppDbContext db)
+        {
+            var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new GraphQLException("Nije moguće odrediti korisnika iz tokena.");
+
+            var provider = await db.Users.FindAsync(providerId);
+            if (provider == null)
+                throw new GraphQLException("Neispravan providerId.");
+
+            var service = await db.Services.FindAsync(serviceId);
+            if (service == null)
+                throw new GraphQLException("Usluga nije pronađena.");
+
+            var duration = durationMinutes ?? 30;
+            var endsAtUtc = startsAtUtc.AddMinutes(duration);
+
+            var overlapping = await db.Reservations
+                .AnyAsync(r => r.ProviderId == providerId &&
+                               r.StartsAt < endsAtUtc &&
+                               startsAtUtc < r.StartsAt.AddMinutes(r.DurationMinutes));
+
+            if (overlapping)
+                throw new GraphQLException("Odabrani termin se preklapa s postojećom rezervacijom.");
+
+            var reservation = new Reservation
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                UserId = userId,
+                ProviderId = providerId,
+                ServiceId = serviceId,
+                StartsAt = DateTime.SpecifyKind(startsAtUtc, DateTimeKind.Utc),
+                DurationMinutes = duration,
+                Status = "Pending"
+            };
+
+            var notification = new Notification
+            {
+                UserId = providerId,
+                Message = $"Nova rezervacija za uslugu \"{service.Name}\" u {startsAtUtc.ToLocalTime():dd.MM.yyyy. HH:mm}",
+            };
+
+            db.Reservations.Add(reservation);
+            db.Notifications.Add(notification);
+
+            await db.SaveChangesAsync();
+
+            return new ReservationPayload(reservation.Id, true, "Rezervacija uspješno kreirana.");
+        }
+
+        [Authorize]
+        [GraphQLName("updateUser")]
+        public async Task<User> UpdateUserAsync(
+            string userId,
+            string? address,
+            string? phone,
+            string? workHours,
+            [Service] AppDbContext db)
+        {
+            var user = await db.Users.FindAsync(userId);
+            if (user == null)
+                throw new GraphQLException("Korisnik nije pronađen.");
+
+            user.Address = address ?? user.Address;
+            user.Phone = phone ?? user.Phone;
+            user.WorkHours = workHours ?? user.WorkHours;
+
+            if (!string.IsNullOrWhiteSpace(workHours))
+            {
+                var parts = workHours.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 2)
+                {
+                    var dayRange = parts[0].Trim();
+                    var hourRange = parts[1].Trim();
+                    user.WorkingHoursRange = hourRange;
+                    user.WorkDays = ParseDayRange(dayRange);
+                }
+            }
+
+            await db.SaveChangesAsync();
+            return user;
+        }
+
+        [Authorize]
+        [GraphQLName("deleteReservation")]
+        public async Task<ReservationPayload> DeleteReservationAsync(
+            string id,
+            string? reason,
+            ClaimsPrincipal claims,
+            [Service] AppDbContext db)
+        {
+            var reservation = await db.Reservations
+                .Include(r => r.User)
+                .Include(r => r.Provider)
+                .Include(r => r.Service)
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            if (reservation == null)
+                return new ReservationPayload(id, false, "Rezervacija nije pronađena.");
+
+            var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isUser = reservation.UserId == userId;
+            var isProvider = reservation.ProviderId == userId;
+
+            if (!isUser && !isProvider)
+                throw new GraphQLException("Nedozvoljena akcija.");
+
+            var serviceName = reservation.Service?.Name ?? "Nepoznata usluga";
+            var dateStr = reservation.StartsAt.ToLocalTime().ToString("dd.MM.yyyy. HH:mm");
+
+            if (isUser)
+            {
+                var msg = $"Korisnik je otkazao termin za uslugu \"{serviceName}\" u {dateStr}";
+                if (!string.IsNullOrWhiteSpace(reason))
+                    msg += $" – razlog: \"{reason}\"";
+
+                db.Notifications.Add(new Notification
+                {
+                    UserId = reservation.ProviderId,
+                    Message = msg
+                });
+            }
+
+            if (isProvider)
+            {
+                var msg = $"Pružatelj usluge je otkazao vaš termin za \"{serviceName}\" u {dateStr}";
+                if (!string.IsNullOrWhiteSpace(reason))
+                    msg += $" – razlog: \"{reason}\"";
+
+                db.Notifications.Add(new Notification
+                {
+                    UserId = reservation.UserId,
+                    Message = msg
+                });
+            }
+
+            db.Reservations.Remove(reservation);
+            await db.SaveChangesAsync();
+
+            return new ReservationPayload(id, true, "Rezervacija je uspješno otkazana.");
+        }
+
+        [Authorize]
+        [GraphQLName("markAllNotificationsAsRead")]
+        public async Task<bool> MarkAllNotificationsAsReadAsync(
+            ClaimsPrincipal claims,
+            [Service] AppDbContext db)
+        {
+            var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return false;
+
+            var unread = await db.Notifications
+                .Where(n => n.UserId == userId && !n.IsRead)
+                .ToListAsync();
+
+            foreach (var n in unread)
+                n.IsRead = true;
+
+            await db.SaveChangesAsync();
+            return true;
+        }
+
+        [Authorize]
+        [GraphQLName("markNotificationAsRead")]
+        public async Task<GenericPayload> MarkNotificationAsReadAsync(
+            string id,
+            ClaimsPrincipal claims,
+            [Service] AppDbContext db)
+        {
+            var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return new GenericPayload(false, "Korisnik nije prijavljen.");
+
+            var notification = await db.Notifications
+                .FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
+
+            if (notification == null)
+                return new GenericPayload(false, "Notifikacija nije pronađena.");
+
+            notification.IsRead = true;
+            await db.SaveChangesAsync();
+
+            return new GenericPayload(true, "Notifikacija označena kao pročitana.");
+        }
+
+        [GraphQLName("createService")]
+        public async Task<Service> CreateServiceAsync(
+            string providerId,
+            string name,
+            int durationMinutes,
+            [Service] AppDbContext db)
+        {
+            var service = new Service
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                ProviderId = providerId,
+                Name = name,
+                DurationMinutes = durationMinutes
+            };
+
+            db.Services.Add(service);
+            await db.SaveChangesAsync();
+            return service;
+        }
     }
 }
