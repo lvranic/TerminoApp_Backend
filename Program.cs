@@ -22,6 +22,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     ServiceLifetime.Scoped
 );
 
+// ✅ Ručno ispiši connection string u log
+var configuration = builder.Configuration;
+var connectionString = configuration.GetConnectionString("DefaultConnection");
+Console.WriteLine("🔌 Using connection string: " + connectionString);
+
 // JWT auth
 var jwtSection = builder.Configuration.GetSection("JwtSettings");
 var jwtKey = jwtSection["Key"] ?? throw new Exception("JwtSettings:Key nedostaje");
@@ -82,6 +87,13 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
+app.UseRouting(); // ⬅️ DODAJ OVO
+
+app.UseEndpoints(endpoints =>
+{
+    endpoints.MapControllers();
+    endpoints.MapGraphQL("/graphql");
+});
 app.UseAuthorization();
 
 app.MapControllers();
