@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 using System.Text;
 using TerminoApp_NewBackend.Data;
 using TerminoApp_NewBackend.GraphQL.Mutations;
@@ -44,6 +45,7 @@ builder.Services.AddAuthentication(options =>
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
+        NameClaimType = ClaimTypes.NameIdentifier,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
         ValidateIssuer = !string.IsNullOrWhiteSpace(jwtIssuer),
         ValidIssuer = jwtIssuer,
@@ -56,6 +58,9 @@ builder.Services.AddAuthentication(options =>
 
 // JWT Service
 builder.Services.AddSingleton<JwtService>();
+
+// ✅ OVDJE JE KLJUČNO
+builder.Services.AddAuthorization();
 
 // GraphQL
 builder.Services
@@ -86,11 +91,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
-app.UseRouting(); // ➕ ovo ostaje
+app.UseRouting();
 
 app.UseAuthorization();
 
-// Mapiraj kontrolere i GraphQL jednom
+// Mapiraj kontrolere i GraphQL
 app.MapControllers();
 app.MapGraphQL("/graphql");
 
