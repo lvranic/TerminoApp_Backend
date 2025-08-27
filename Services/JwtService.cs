@@ -4,7 +4,7 @@ using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using TerminoApp_NewBackend.Models; // ✅ Dodano zbog User modela
+using TerminoApp_NewBackend.Models;
 
 namespace TerminoApp_NewBackend.Services
 {
@@ -21,22 +21,21 @@ namespace TerminoApp_NewBackend.Services
         {
             var jwt = _configuration.GetSection("JwtSettings");
 
-            // potrebne vrijednosti iz appsettings.json
-            var key = jwt["Key"] ?? throw new Exception("JWT Key missing in configuration.");
+            // Učitaj podatke iz konfiguracije
+            var key = jwt["Key"] ?? throw new Exception("❌ JWT Key nedostaje u konfiguraciji.");
             var issuer = jwt["Issuer"] ?? "TerminoApp";
             var audience = jwt["Audience"] ?? "TerminoAppUsers";
 
-            // dozvoli da u appsettings dodaš "ExpiresInMinutes"; default 120 min
             var expiresInMinutes = 120;
-            if (int.TryParse(jwt["ExpiresInMinutes"], out var parsed)) expiresInMinutes = parsed;
+            if (int.TryParse(jwt["ExpiryMinutes"], out var parsed)) expiresInMinutes = parsed;
 
             var claims = new[]
             {
                 new Claim(JwtRegisteredClaimNames.Sub, userId),
                 new Claim(JwtRegisteredClaimNames.Email, email),
-                new Claim(ClaimTypes.Role, role),
-                new Claim(ClaimTypes.NameIdentifier, userId), // .NET
-                new Claim("nameid", userId) // HotChocolate očekuje ovo!
+                new Claim(ClaimTypes.Role, role), // za [Authorize(Roles = "...")]
+                new Claim(ClaimTypes.NameIdentifier, userId), // .NET middleware koristi ovo
+                new Claim("nameid", userId) // HotChocolate očekuje i ovo
             };
 
             var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
@@ -53,7 +52,6 @@ namespace TerminoApp_NewBackend.Services
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        // ✅ NOVO: metoda koja prima User objekt
         public string Generate(User user)
         {
             return GenerateToken(user.Id, user.Email, user.Role);
