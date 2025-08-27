@@ -22,7 +22,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     ServiceLifetime.Scoped
 );
 
-// Ručno ispiši connection string
+// Ispiši connection string
 var configuration = builder.Configuration;
 var connectionString = configuration.GetConnectionString("DefaultConnection");
 Console.WriteLine("🔌 Using connection string: " + connectionString);
@@ -59,7 +59,6 @@ builder.Services.AddAuthentication(options =>
 // JWT Service
 builder.Services.AddSingleton<JwtService>();
 
-// ✅ OVDJE JE KLJUČNO
 builder.Services.AddAuthorization();
 
 // GraphQL
@@ -95,7 +94,7 @@ app.UseRouting();
 
 app.UseAuthorization();
 
-// Mapiraj kontrolere i GraphQL
+// Mapiranje kontrolera i GraphQL
 app.MapControllers();
 app.MapGraphQL("/graphql");
 

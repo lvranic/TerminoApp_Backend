@@ -1,5 +1,4 @@
 // GraphQL/Payloads/LoginPayload.cs
-
 using TerminoApp_NewBackend.Models;
 
 namespace TerminoApp_NewBackend.GraphQL.Payloads

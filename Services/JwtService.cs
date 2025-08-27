@@ -21,7 +21,7 @@ namespace TerminoApp_NewBackend.Services
         {
             var jwt = _configuration.GetSection("JwtSettings");
 
-            // Učitaj podatke iz konfiguracije
+            // Čitanje podataka iz konfiguracije
             var key = jwt["Key"] ?? throw new Exception("❌ JWT Key nedostaje u konfiguraciji.");
             var issuer = jwt["Issuer"] ?? "TerminoApp";
             var audience = jwt["Audience"] ?? "TerminoAppUsers";
@@ -35,7 +35,7 @@ namespace TerminoApp_NewBackend.Services
                 new Claim(JwtRegisteredClaimNames.Email, email),
                 new Claim(ClaimTypes.Role, role), // za [Authorize(Roles = "...")]
                 new Claim(ClaimTypes.NameIdentifier, userId), // .NET middleware koristi ovo
-                new Claim("nameid", userId) // HotChocolate očekuje i ovo
+                new Claim("nameid", userId) // HotChocolate očekuje ovo
             };
 
             var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
